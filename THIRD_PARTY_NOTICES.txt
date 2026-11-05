@@ -1,0 +1,16 @@
+LTA // UPLOAD — third-party notices
+
+The Windows download includes separately built FFmpeg and FFprobe executables
+obtained from Gyan's FFmpeg Windows builds: https://www.gyan.dev/ffmpeg/builds/
+FFmpeg project: https://ffmpeg.org/
+FFmpeg source code and licence information: https://ffmpeg.org/legal.html
+
+The release includes FFMPEG_LICENSE.txt containing the licence shipped with
+that binary distribution (or a complete copy of GPLv3). Refer to upstream redistribution terms before
+redistributing or modifying third-party binaries.
+
+LTA // UPLOAD uses PySide6/Qt, numpy, librosa, soundfile and Google API
+client libraries. Consult their upstream licences when redistributing builds.
+
+Google, YouTube, BeatStars and Pexels are third-party services. This project
+is not affiliated with or endorsed by them.

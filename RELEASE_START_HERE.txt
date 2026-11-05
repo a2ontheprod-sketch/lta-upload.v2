@@ -1,0 +1,22 @@
+LTA // UPLOAD — START HERE (Windows)
+===================================
+
+1. Extract EVERY file from the downloaded GitHub Actions ZIP to ONE folder.
+2. Double-click LTA-UPLOAD.exe. Leave ffmpeg.exe and ffprobe.exe in the same folder.
+3. Windows SmartScreen may warn about an unsigned new app. Only run if you
+   trust the GitHub repository and build; do not disable antivirus protection.
+4. Test one MP3 or WAV with YouTube unchecked and BeatStars assisted unchecked.
+5. Generated MP4 files save to Videos\LTA Upload (or your Settings output folder).
+6. For YouTube: create a Google Cloud Desktop OAuth client JSON, keep it PRIVATE,
+   load it via Settings and click Connect YouTube. Upload one PRIVATE beat first.
+7. BeatStars is ASSISTED publishing, not a direct automatic BeatStars upload.
+
+App settings, saved tokens, artwork and duplicate-upload history persist locally
+under %APPDATA%\LTA_UPLOAD and Windows Credential Manager. They are never
+stored on GitHub unless you intentionally upload them.
+
+The app requires an internet connection for YouTube / Pexels, but local
+beat analysis, image-video rendering and preview work offline.
+
+Documentation and troubleshooting are in the source GitHub repository:
+GITHUB_SETUP_GUIDE.md and GITHUB_TROUBLESHOOTING.md.
