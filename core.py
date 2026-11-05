@@ -232,14 +232,24 @@ def analyze_audio(audio):
             'tempo_alternatives':[round(bpm/2),bpm,round(bpm*2)] if bpm else []}
 
 
+def compose_video_artwork(source, width, height):
+    """Fill a central 60%-width panel with the artwork; black sidebars.
+
+    Crop from the centre when necessary, never distort the image. This produces
+    a large YouTube-style vertical cover rather than a tiny uncropped portrait.
+    """
+    img = ImageOps.exif_transpose(source).convert('RGB')
+    panel_width = int(width * 0.60)
+    panel = ImageOps.fit(img, (panel_width, height), method=Image.Resampling.LANCZOS,
+                         centering=(0.5, 0.5))
+    canvas = Image.new('RGB', (width, height), (0, 0, 0))
+    canvas.paste(panel, ((width - panel_width) // 2, 0))
+    return canvas
+
+
 def prepare_image(source, destination, width=1920, height=1080, quality=94):
     with Image.open(source) as original:
-        img = ImageOps.exif_transpose(original).convert('RGB')
-        # Preserve the entire artwork and letterbox with black instead of cropping.
-        img.thumbnail((width,height),Image.Resampling.LANCZOS)
-        canvas=Image.new('RGB',(width,height),(0,0,0))
-        canvas.paste(img,((width-img.width)//2,(height-img.height)//2))
-        img=canvas
+        img = compose_video_artwork(original, width, height)
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
         img.save(destination,'JPEG',quality=quality,subsampling=0,optimize=True)
     return str(destination)
@@ -299,6 +309,7 @@ def video_filename(beat_name, audio_path, artwork=None, resolution='1920x1080'):
             h.update(str(p.resolve()).encode('utf-8'))
             h.update(f':{st.st_size}:{st.st_mtime_ns}'.encode('ascii'))
     h.update(str(resolution).encode('ascii'))
+    h.update(b'cover-layout-v3-center-60-percent')
     return safe_stem(beat_name) + '_' + h.hexdigest()[:10] + '.mp4'
 
 

@@ -38,17 +38,17 @@ GREY='#766F75'
 
 STYLE='''
 QWidget { background: #FFFFFF; color: #242124; font-family: 'Segoe UI'; font-size: 12px; }
-QFrame#Panel {background:#FFF9FC;border:1px solid #F7E2EB;border-radius:18px;}
+QFrame#Panel {background:#FFFBFD;border:1px solid #F5E9EF;border-radius:16px;}
 QFrame#Drop {background:#FFF8FB;border:2px dashed #EFB3CC;border-radius:14px;}
 QLabel#Heading {font-size:21px;font-weight:750;}
 QLabel#Section {font-size:13px;font-weight:700;color:#242124;}
 QLabel#Muted {font-size:11px;color:#81737B;}
 QLabel#Selected {background:#FFE4EE;border-radius:10px;padding:10px;font-size:14px;font-weight:700;}
 QLabel#Step {color:#C06C91;font-size:12px;font-weight:700;}
-QLineEdit, QTextEdit, QComboBox, QDateTimeEdit, QTableWidget {border:1px solid #EFDDE6;border-radius:9px;padding:8px;background:#FFFFFF;selection-background-color:#F8BBD0;}
+QLineEdit, QTextEdit, QComboBox, QDateTimeEdit, QTableWidget {border:1px solid #F0E5EB;border-radius:12px;padding:10px;background:#FFFFFF;selection-background-color:#F8BBD0;}
 QLineEdit:focus, QTextEdit:focus, QComboBox:focus {border:1px solid #EC96B6;}
-QPushButton {border:1px solid #F0D7E2;border-radius:10px;background:#FFF4F8;padding:9px 14px;font-weight:600;}
-QPushButton:hover {background:#FFE4EE;border-color:#EFA8C6;}
+QPushButton {border:0;border-radius:13px;background:#FFF0F6;padding:11px 16px;font-weight:600;}
+QPushButton:hover {background:#FFE1ED;}
 QPushButton#Primary {background:#F8BBD0;border:0;color:#38212B;font-size:15px;padding:14px 22px;}
 QPushButton#Primary:hover {background:#F4A4C1;}
 QPushButton:disabled {background:#F5F2F4;color:#AEA9AC;}
@@ -57,7 +57,11 @@ QProgressBar {border:0;border-radius:6px;background:#F7E6EE;height:12px;text-ali
 QProgressBar::chunk {border-radius:6px;background:#F8BBD0;}
 QCheckBox::indicator {width:17px;height:17px;}
 QTableWidget {gridline-color:#F1E8ED;}
-QHeaderView::section {background:#FFF3F8;border:none;padding:7px;font-weight:600;}
+QHeaderView::section {background:#FFF5F9;border:none;padding:10px;font-weight:600;}
+QTableWidget::item:selected {background:#FFE1EE;color:#242124;}
+QCalendarWidget QWidget {background:#FFFFFF;}
+QCalendarWidget QToolButton {background:#FFE4EE;border-radius:8px;padding:6px;}
+QCalendarWidget QAbstractItemView:enabled {selection-background-color:#F8BBD0;selection-color:#242124;}
 '''
 
 
@@ -120,6 +124,7 @@ class Beat:
     desc_override:str=''
     tags_override:str=''
     waveform:list=field(default_factory=list)
+    included:bool=True
 
 
 class SettingsDialog(QDialog):
@@ -424,21 +429,25 @@ class Main(QWidget):
     def build_left(self):
         self.left.addWidget(txt('01  BEAT SETUP','Section'))
         self.drop=DropZone();self.drop.filesDropped.connect(self.add_files);self.left.addWidget(self.drop)
-        self.table=QTableWidget(0,5)
-        self.table.setHorizontalHeaderLabels(['Beat name','File','BPM','Key','BeatStars track URL'])
+        self.table=QTableWidget(0,6)
+        self.table.setHorizontalHeaderLabels(['Upload ✓','Beat name','File','BPM','Key','BeatStars track URL'])
         self.table.setMinimumHeight(230)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(3,QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(5,QHeaderView.ResizeMode.Stretch)
         self.table.itemChanged.connect(self.table_changed)
         self.table.currentCellChanged.connect(self.selected_changed)
         self.left.addWidget(self.table)
         self.selected_label=txt('SELECTED BEAT: None','Selected')
         self.left.addWidget(self.selected_label)
+        self.included_label=txt('Tick the beats you want included in this upload.')
+        self.left.addWidget(self.included_label)
         r=QHBoxLayout()
         r.addWidget(action('Remove selected',self.remove_selected))
         r.addWidget(action('Re-analyse selected',self.analyse_selected))
@@ -481,11 +490,14 @@ class Main(QWidget):
         self.res.setCurrentText(self.cfg.get('res','1920x1080'))
         pub.addWidget(self.visibility);pub.addWidget(self.res)
         self.left.addLayout(pub)
-        self.schedule=QDateTimeEdit(QDateTime.currentDateTime().addDays(1))
+        self.schedule=QDateTimeEdit(QDateTime.currentDateTime().addSecs(15*60))
         self.schedule.setDisplayFormat('dd MMM yyyy  HH:mm')
         self.schedule.setCalendarPopup(True)
         self.schedule.setCalendarWidget(QCalendarWidget())
-        self.schedule.setMinimumDateTime(QDateTime.currentDateTime())
+        self.schedule.setMinimumDate(QDateTime.currentDateTime().date())
+        self.schedule.setMinimumTime(QDateTime.fromString('00:00','HH:mm').time())
+        self.schedule.setToolTip('Choose today or any future date. Scheduled uploads must be in the future.')
+        self.schedule.dateTimeChanged.connect(self.schedule_changed)
         self.left.addWidget(txt('Scheduled time (Europe/London)'))
         self.left.addWidget(self.schedule)
         self.schedule_visibility()
@@ -575,8 +587,8 @@ class Main(QWidget):
         self.transition.start()
 
     def next_step(self):
-        if self.step==0 and not self.beats:
-            show_error(self,'Add a beat first','Drop an MP3 or WAV into the app to continue.');return
+        if self.step==0 and not any(b.included for b in self.beats):
+            show_error(self,'Select beats first','Add a beat and tick its Upload checkbox to continue.');return
         self.set_step(self.step+1)
 
     def previous_step(self):self.set_step(self.step-1)
@@ -617,7 +629,7 @@ class Main(QWidget):
             added.append(str(p));known.add(str(p).casefold())
         self.populate_table()
         if added:
-            self.table.setCurrentCell(len(self.beats)-len(added),0)
+            self.table.setCurrentCell(len(self.beats)-len(added),1)
             self.status.setText(f'{len(self.beats)} beat(s) ready. Detecting BPM and key…')
             self.begin_analysis(added)
 
@@ -648,21 +660,33 @@ class Main(QWidget):
         self.syncing=True
         self.table.setRowCount(len(self.beats))
         for row,beat in enumerate(self.beats):
-            for col,value in enumerate([beat.name,Path(beat.path).name,beat.bpm,beat.key,beat.beatstars_url]):
+            check=QTableWidgetItem('')
+            check.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            check.setCheckState(Qt.CheckState.Checked if beat.included else Qt.CheckState.Unchecked)
+            self.table.setItem(row,0,check)
+            for col,value in enumerate([beat.name,Path(beat.path).name,beat.bpm,beat.key,beat.beatstars_url],start=1):
                 item=QTableWidgetItem(str(value))
-                if col==1:item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if col==2:item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(row,col,item)
         self.syncing=False
+        self.update_included_label()
         if preserve is not None and 0<=preserve<len(self.beats):self.table.setCurrentCell(preserve,0)
+
+    def update_included_label(self):
+        if hasattr(self,'included_label'):
+            count=sum(b.included for b in self.beats)
+            self.included_label.setText(f'{count} of {len(self.beats)} beats checked for upload. Only checked beats will be rendered and published.')
 
     def table_changed(self,item):
         if self.syncing or item.row()>=len(self.beats):return
         beat=self.beats[item.row()]
         value=item.text().strip()
-        if item.column()==0:beat.name=value
-        elif item.column()==2:beat.bpm=value
-        elif item.column()==3:beat.key=value
-        elif item.column()==4:beat.beatstars_url=value
+        if item.column()==0:beat.included=item.checkState()==Qt.CheckState.Checked
+        elif item.column()==1:beat.name=value
+        elif item.column()==3:beat.bpm=value
+        elif item.column()==4:beat.key=value
+        elif item.column()==5:beat.beatstars_url=value
+        self.update_included_label()
         self.refresh_metadata()
 
     def selected_changed(self,row,*_):
@@ -684,7 +708,7 @@ class Main(QWidget):
         del self.beats[self.current]
         self.current=-1
         self.populate_table()
-        if self.beats:self.table.setCurrentCell(0,0)
+        if self.beats:self.table.setCurrentCell(0,1)
         else:self.refresh_metadata()
 
     def ui_metadata(self,beat):
@@ -752,8 +776,13 @@ class Main(QWidget):
         self.art_label.setText('Artwork: '+Path(self.art).name)
         pix=QPixmap(self.art)
         if not pix.isNull():
-            self.preview.setPixmap(pix.scaled(680,310,Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation))
+            # Show a preview of the actual video layout, not the raw narrow artwork.
+            from core import compose_video_artwork
+            from PIL import ImageQt
+            with __import__('PIL.Image',fromlist=['Image']).open(self.art) as source:
+                composed=compose_video_artwork(source,960,540)
+                qimage=ImageQt.ImageQt(composed)
+                self.preview.setPixmap(QPixmap.fromImage(qimage).scaled(680,310,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
         else:self.preview.setText('Choose an artwork image')
 
     def toggle_audio(self):
@@ -784,6 +813,10 @@ class Main(QWidget):
         except Exception as exc:show_error(self,'Could not copy details',exc)
     def schedule_visibility(self,*_):
         self.schedule.setEnabled(self.visibility.currentText()=='Scheduled')
+
+    def schedule_changed(self,*_):
+        # Allow every time on today's date; validation happens on Generate & Upload.
+        pass
 
     def edit_settings(self):
         dia=SettingsDialog(self.cfg,self)
@@ -838,8 +871,9 @@ class Main(QWidget):
     def start(self):
         self.set_step(3)
         from core import trim_tags
-        if not self.beats:
-            show_error(self,'No beats','Choose at least one MP3 or WAV file.');return
+        chosen=[b for b in self.beats if b.included]
+        if not chosen:
+            show_error(self,'No beats selected','Tick at least one beat in Step 1 before uploading.');return
         if self.worker and self.worker.isRunning():return
         if not Path(self.art).exists():
             show_error(self,'Artwork missing','Choose a valid image file.');return
@@ -848,7 +882,7 @@ class Main(QWidget):
             show_error(self,'Output folder needed','Select output folder in Settings.');return
         if self.yt.isChecked() and not self.channel:
             show_error(self,'Connect YouTube','Use Connect YouTube first or uncheck YouTube to render locally.');return
-        for beat in self.beats:
+        for beat in chosen:
             try:
                 if not beat.name:raise ValueError('Enter a beat name in the table.')
                 if not Path(beat.path).exists():raise ValueError('Audio file no longer exists: '+beat.path)
@@ -879,7 +913,8 @@ class Main(QWidget):
               'beatstars':self.bs.isChecked(),'channel':self.channel,'visibility':self.visibility.currentText().lower(),
               'publish_at':publish_at}
         self.log.clear();self.progress.setValue(0);self.start_btn.setEnabled(False)
-        self.worker=UploadWorker(deepcopy(self.beats),opts)
+        self.append_log(f'Starting {len(chosen)} checked beat(s).')
+        self.worker=UploadWorker(deepcopy(chosen),opts)
         self.worker.progress.connect(self.progress.setValue)
         self.worker.log.connect(self.append_log)
         self.worker.finished_all.connect(self.finished)
