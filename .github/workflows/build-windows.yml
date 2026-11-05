@@ -1,0 +1,66 @@
+name: Build LTA UPLOAD for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build and test portable Windows app
+    runs-on: windows-2022
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout app files
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+          cache: 'pip'
+
+      - name: Install app and packaging dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install 'pyinstaller>=6.16,<7' 'pytest>=8,<10'
+
+      - name: Download FFmpeg for the portable app
+        shell: pwsh
+        run: ./scripts/download_ffmpeg.ps1
+
+      - name: Run existing tests (including an actual FFmpeg render)
+        shell: pwsh
+        run: python -m pytest -q
+
+      - name: Package unchanged app as a Windows EXE
+        shell: pwsh
+        run: ./scripts/build_windows.ps1
+
+      - name: Verify downloadable files
+        shell: pwsh
+        run: |
+          $files = @('LTA-UPLOAD.exe','ffmpeg.exe','ffprobe.exe','FFMPEG_LICENSE.txt','THIRD_PARTY_NOTICES.txt','START_HERE.txt')
+          foreach ($name in $files) {
+            $file = Join-Path 'release' $name
+            if (!(Test-Path $file)) { throw "Missing build output: $file" }
+            if ((Get-Item $file).Length -eq 0) { throw "Empty build output: $file" }
+          }
+          Write-Host 'All expected portable-app files exist.'
+
+      - name: Upload Windows download
+        uses: actions/upload-artifact@v4
+        with:
+          name: LTA-UPLOAD-Windows
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
