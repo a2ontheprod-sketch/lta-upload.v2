@@ -87,6 +87,48 @@ def notify(parent,title,body):
     QMessageBox.information(parent,title,body)
 
 
+class BeatStarsPublishDialog(QDialog):
+    """Human-confirmed BeatStars Studio handoff; never impersonates an upload API."""
+    def __init__(self, beat, details, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('BeatStars · publish first')
+        self.setMinimumWidth(530)
+        layout=QVBoxLayout(self)
+        layout.setSpacing(13)
+        layout.addWidget(txt('Publish to BeatStars', 'Heading'))
+        layout.addWidget(txt('Selected beat: '+beat.name, 'Selected'))
+        message=txt('1. Open BeatStars Studio and sign in on its own website.\n'
+                    '2. Upload this beat and your chosen artwork. Copy the details below as needed.\n'
+                    '3. Review your licences, prices and collaborators, then publish.\n'
+                    '4. Copy the direct URL of the published track and paste it here.\n'
+                    '5. Continue: LTA // UPLOAD will put that URL into the YouTube description.')
+        layout.addWidget(message)
+        file_line=QLineEdit(beat.path);file_line.setReadOnly(True)
+        layout.addWidget(txt('Audio file to upload'))
+        layout.addWidget(file_line)
+        buttons=QHBoxLayout()
+        buttons.addWidget(action('Open BeatStars Studio ↗',lambda:webbrowser.open('https://studio.beatstars.com/content/tracks/uploaded')))
+        buttons.addWidget(action('Copy beat details',lambda:QApplication.clipboard().setText(details)))
+        layout.addLayout(buttons)
+        layout.addWidget(txt('Direct BeatStars track URL (not your homepage)'))
+        self.url=QLineEdit(beat.beatstars_url)
+        self.url.setPlaceholderText('Paste the published BeatStars track link here')
+        layout.addWidget(self.url)
+        layout.addWidget(txt('BeatStars publishing is not automatic. Only click Continue after the track has been published.'))
+        footer=QHBoxLayout()
+        footer.addWidget(action('Cancel upload queue',self.reject))
+        proceed=action('Continue to YouTube →',self.verify,True)
+        footer.addWidget(proceed)
+        layout.addLayout(footer)
+
+    def verify(self):
+        url=self.url.text().strip()
+        if not valid_beatstars_url(url):
+            show_error(self,'Direct BeatStars link needed','Publish the beat in BeatStars Studio and paste its direct track link before continuing.')
+            return
+        self.accept()
+
+
 class DropZone(QFrame):
     filesDropped=Signal(list)
     def __init__(self):
@@ -298,6 +340,8 @@ class UploadWorker(QThread):
                     cfg,beat.beatstars_url,self.opts['credit'])
                 title=beat.meta_override or info['title']
                 desc=beat.desc_override or info['description']
+                if beat.beatstars_url and beat.beatstars_url not in desc:
+                    desc='BUY / LICENSE THIS BEAT:\n'+beat.beatstars_url+'\n\n'+desc
                 tags=([v.strip() for v in beat.tags_override.split(',') if v.strip()]
                       if beat.tags_override else info['tags'])
                 if self.opts['beatstars'] and not beat.beatstars_url:
@@ -478,7 +522,7 @@ class Main(QWidget):
         self.left.addWidget(txt('03  PUBLISH','Section'))
         p=QHBoxLayout()
         self.yt=QCheckBox('YouTube');self.yt.setChecked(True)
-        self.bs=QCheckBox('BeatStars assisted');self.bs.setChecked(False)
+        self.bs=QCheckBox('BeatStars + YouTube (publish BeatStars first)');self.bs.setChecked(False)
         self.bs.toggled.connect(self.bs_changed)
         p.addWidget(self.yt);p.addWidget(self.bs);p.addStretch()
         self.left.addLayout(p)
@@ -501,7 +545,7 @@ class Main(QWidget):
         self.left.addWidget(txt('Scheduled time (Europe/London)'))
         self.left.addWidget(self.schedule)
         self.schedule_visibility()
-        self.bs_btn=action('Open BeatStars Studio ↗',lambda:webbrowser.open('https://www.beatstars.com/studio'))
+        self.bs_btn=action('Open BeatStars Studio ↗',lambda:webbrowser.open('https://studio.beatstars.com/content/tracks/uploaded'))
         self.left.addWidget(self.bs_btn)
         self.bs_btn.setVisible(False)
         self.bs_copy=action('Copy selected beat details for BeatStars',self.copy_beatstars_details)
@@ -899,6 +943,31 @@ class Main(QWidget):
                     if len(trim_tags(entered)) != len(set(t.lower() for t in entered)):
                         raise ValueError('YouTube tags exceed the 500-character limit or contain invalid values. Shorten them.')
             except Exception as e:show_error(self,'Check beat details',e);return
+        # BeatStars first: collect a confirmed, per-track link BEFORE generating
+        # YouTube descriptions. Cancel stops the whole queue; never upload a
+        # YouTube video with a placeholder purchase link.
+        if self.bs.isChecked():
+            for beat in chosen:
+                if beat.beatstars_url:
+                    continue
+                info=self.ui_metadata(beat)
+                details=(f'Beat: {beat.name}\nArtists: {self.a1.text()} x {self.a2.text()}\n'
+                         f'BPM: {beat.bpm or "Not set"}\nKey: {beat.key or "Not set"}\n'
+                         f'Genre: {info["genre"] or "Not set"}\nMood: {self.mood.text() or "Not set"}\n'
+                         f'Tags: {", ".join(info["tags"])}')
+                dialog=BeatStarsPublishDialog(beat,details,self)
+                if dialog.exec()!=QDialog.DialogCode.Accepted:
+                    self.append_log('Cancelled: BeatStars publishing was not confirmed. Nothing was uploaded to YouTube.')
+                    return
+                beat.beatstars_url=dialog.url.text().strip()
+                self.populate_table(preserve=self.current)
+            # A description edited before BeatStars linking may still contain a
+            # stale placeholder. Rebuild it to insert the confirmed track URL.
+            for beat in chosen:
+                if beat.desc_override and ('[DIRECT BEATSTARS' in beat.desc_override or
+                                           '[BEATSTARS' in beat.desc_override):
+                    beat.desc_override=''
+            self.refresh_metadata()
         publish_at=None
         if self.yt.isChecked() and self.visibility.currentText()=='Scheduled':
             try:
